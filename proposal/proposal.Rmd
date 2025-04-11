@@ -4,14 +4,17 @@ author:
   - "Nimrah Ashfaq"
   - "AUIC-24FL-MSDS-9570"
 output:
+  pdf_document:
+    latex_engine: xelatex
+    number_sections: true
   html_document:
     theme: flatly
     toc: yes
     toc_depth: 2
+    number_sections: true
     df_print: paged
     toc_float:
       collapsed: true
-  pdf_document: default
 ---
 
 ```{r load-packages, message = FALSE, echo = FALSE}
@@ -50,7 +53,8 @@ To address this question, statistical techniques to examine trends, model relati
 **H3**: Countries with low perceived corruption tend to report higher happiness, and this relationship strengthens when combined with strong governance indicators (e.g., social support and life expectancy).
 
 The dataset is derived from the **World Happiness Report**, an annual study based on data collected by the **Gallup World Poll**, supplemented with official statistics from sources such as the **World Bank, World Health Organization (WHO), and the United Nations**. The data is collected through large-scale surveys where individuals rate their overall life satisfaction on a scale of **0 to 10**.
-This dataset is derived from the [World Happiness Report](https://worldhappiness.report/).
+This dataset is derived from the [**\underline{World Happiness Report}**](https://worldhappiness.report/).
+
 
 ## **Section 2 - Data**
 
@@ -310,3 +314,4 @@ H2 will be explored by incorporating perceived Freedom and Generosity into the m
 For H3, the relationship between Corruption Perception and Happiness will be analyzed, both independently and in interaction with governance-related variables such as Social Support and Life Expectancy, to assess compound effects.
 
 ## **Data Dictionary**
+The data dictionary can be found [**\underline{here}**](https://github.com/nimyou/world-happiness-report/blob/main/data/README.md).
