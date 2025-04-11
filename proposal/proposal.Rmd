@@ -1,1 +1,312 @@
+---
+title: "Project Proposal - World Happiness Report"
+author: 
+  - "Nimrah Ashfaq"
+  - "AUIC-24FL-MSDS-9570"
+output:
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_depth: 2
+    df_print: paged
+    toc_float:
+      collapsed: true
+  pdf_document: default
+---
 
+```{r load-packages, message = FALSE, echo = FALSE}
+library(tidyverse)
+library(dplyr)
+library(skimr)
+library(broom)
+library(ggcorrplot)
+library(moments)
+library(here)
+library(countrycode)
+library(ggsci)
+library(knitr)
+library(htmltools)
+library(shiny)
+library(viridis)
+library(ggridges)
+library(ggpubr)
+library(patchwork)
+library(e1071)
+library(gridExtra)
+```
+
+## **Section 1 - Introduction**
+
+Happiness is increasingly recognized as a vital measure of human well-being, often offering a more holistic perspective on quality of life than traditional economic metrics alone. The World Happiness Report spanning 2019 to 2024 compiles data from countries around the globe to assess how various factors, ranging from income and social support to health, governance, and freedom, contribute to overall national happiness levels. But beyond the commonly measured economic indicators, how do social and governance factors impact a nation's happiness? What other variables might influence how happiness is experienced and reported across different regions? One of the key columns happiness score serves as our primary measure of national well-being. Using this score as an indication of a country's overall happiness, general research question is:
+ 
+*What are the most significant economic, social, and governance predictors of national happiness levels, and how can statistical modeling be used to analyze regional variations and forecast future trends using World Happiness Report data from 2019 to 2024?*
+
+To address this question, statistical techniques to examine trends, model relationships between predictors and happiness scores will be applied. My analysis is driven by the following hypotheses:
+
+**H1**: Higher GDP per capita, social support, and life expectancy are significantly associated with higher happiness scores across countries.
+
+**H2**: Perceived freedom and generosity positively influence happiness, but their effect size differs by region - suggesting regional interaction effects.
+
+**H3**: Countries with low perceived corruption tend to report higher happiness, and this relationship strengthens when combined with strong governance indicators (e.g., social support and life expectancy).
+
+The dataset is derived from the **World Happiness Report**, an annual study based on data collected by the **Gallup World Poll**, supplemented with official statistics from sources such as the **World Bank, World Health Organization (WHO), and the United Nations**. The data is collected through large-scale surveys where individuals rate their overall life satisfaction on a scale of **0 to 10**.
+This dataset is derived from the [World Happiness Report](https://worldhappiness.report/).
+
+## **Section 2 - Data**
+
+The dataset has been placed in the `/data` folder for organization and reproducibility. A **README.md** file within this folder documents the dataset’s dimensions and a codebook explaining each variable. 
+
+#### **Dataset Overview**
+Below is an overview of the dataset using `glimpse()` to provide an initial summary.
+
+```{r, load dataset, message=FALSE, warning=FALSE, echo = FALSE}
+# Load dataset
+world_happiness <- read.csv("..//:data/world_happiness.csv")
+
+# View dataset structure
+glimpse(world_happiness)
+```
+
+
+## **Section 3 - Data Analysis Plan**
+
+**Response Variable (Y)**:
+- Happiness Score (Ladder Score) – Measures overall well-being on a scale of 0 to 10.
+
+**Explanatory (Predictor) Variables (X)**:
+- GDP per Capita
+- Social Support
+- Healthy Life Expectancy
+- Freedom to Choose
+- Perception of Corruption 
+- Generosity
+
+#### **Comparison Groups**
+- **Regional Comparisons**: Comparing happiness scores across different continents
+- **Economic-Based Comparisons**: Do wealthier countries report significantly higher happiness?
+- **Governance & Corruption Comparisons**: Do people in countries with lower perceived corruption report higher happiness?
+- **Health & Well-being Comparisons**: Do longer lifespans correlate with higher happiness?
+- **Freedom & Rights-Based Comparisons**: Does personal freedom significantly impact happiness?
+- **Social & Cultural Factors**: How crucial is social bonding for happiness?
+
+
+## **Prelim EDA**
+**Data Cleaning and Preprocessing**
+
+1. **Check for missing values**: All missing values were removed from the dataset to ensure the accuracy and reliability of the subsequent statistical analyses.
+2. **Standardization**: To enhance readability and streamline the analysis process, column names are standardized using the `dplyr::rename()` function.
+3. A new variable, Continent, is created using the countrycode package to classify each country into its corresponding continent. This allows for more effective aggregate and comparative analysis across global regions.
+
+```{r, data cleaning, message=FALSE, warning=FALSE, echo = FALSE}
+# Handle missing values (replace with mean or remove rows if excessive)
+world_happiness <- world_happiness %>% drop_na()
+
+# Rename columns for clarity
+world_happiness <- world_happiness %>% rename(
+  Country = Country.name,
+  Happiness_Rank = Rank,
+  Happiness_Score = Ladder.score,
+  Lower_Confidence = lowerwhisker,
+  Upper_Confidence = upperwhisker,
+  GDP_per_Capita = Explained.by..Log.GDP.per.capita,
+  Social_Support = Explained.by..Social.support,
+  Healthy_Life_Expectancy = Explained.by..Healthy.life.expectancy,
+  Freedom_to_Choose = Explained.by..Freedom.to.make.life.choices,
+  Corruption_Perception = Explained.by..Perceptions.of.corruption,
+  Generosity = Explained.by..Generosity,
+  Dystopia_Residual = Dystopia...residual
+)
+
+# Create new variable, Continent using the countrycode package
+world_happiness <- world_happiness %>%
+  mutate(
+    Continent = countrycode(
+      Country,
+      origin = "country.name",
+      destination = "continent",
+      custom_match = c(
+        "Kosovo" = "Europe", # Manual mappings
+        "Taiwan Province of China" = "Asia",
+        "Hong Kong SAR of China" = "Asia"
+      )
+    )
+  )
+
+# Custom diverging palette for continents
+continent_colors <- c(
+  "Europe" = "#d7191c", # Red
+  "Oceania" = "#ffffbf", # Orange
+  "Americas" = "#fdae61", # Yellow (light)
+  "Africa" = "#abd9e9", # Light blue
+  "Asia" = "#2c7bb6" # Dark blue
+)
+
+# Define custom colors for each year (2019 to 2024)
+year_colors <- c(
+  "2019" = "#8c510a", # Brownish Orange
+  "2020" = "#d8b365", # Light Brown
+  "2021" = "#f6e8c3", # Very Light Yellow
+  "2022" = "#c7eae5", # Light Teal
+  "2023" = "#5ab4ac", # Teal
+  "2024" = "#01665e" # Dark Teal
+)
+``` 
+
+### 1. **Summary Statistics**
+```{r, summary stats, message=FALSE, warning=FALSE, echo = FALSE, fig.width=12, fig.height=6, dpi=300}  
+# 1. **Central Tendency and Spread**
+# Calculate the mean, median, standard deviation, and range
+mean_happiness <- mean(world_happiness$Happiness_Score, na.rm = TRUE)
+median_happiness <- median(world_happiness$Happiness_Score, na.rm = TRUE)
+sd_happiness <- sd(world_happiness$Happiness_Score, na.rm = TRUE)
+range_happiness <- paste(range(world_happiness$Happiness_Score, na.rm = TRUE), collapse = " to ")
+
+# 2. **Skewness and Outliers**
+# Calculate skewness using the e1071 package
+skewness_value <- skewness(world_happiness$Happiness_Score, na.rm = TRUE)
+
+# 3. **Identifying Outliers (using IQR)**
+# Calculate IQR for detecting outliers
+IQR_value <- IQR(world_happiness$Happiness_Score, na.rm = TRUE)
+lower_bound <- quantile(world_happiness$Happiness_Score, 0.25, na.rm = TRUE) - 1.5 * IQR_value
+upper_bound <- quantile(world_happiness$Happiness_Score, 0.75, na.rm = TRUE) + 1.5 * IQR_value
+
+# Identify outliers
+outliers <- world_happiness$Happiness_Score[world_happiness$Happiness_Score < lower_bound | world_happiness$Happiness_Score > upper_bound]
+
+# Create a data frame for better presentation in HTML
+summary_stats_happiness <- data.frame(
+  Summary_Statistics_Happiness = c(
+    "Mean", "Median", "Standard Deviation",
+    "Range", "Skewness"
+  ),
+  Value = c(
+    mean_happiness,
+    median_happiness,
+    sd_happiness,
+    range_happiness,
+    skewness_value
+  )
+)
+summary_stats_happiness
+```
+##### Interpretation:
+*The mean and median of happiness scores indicates that most scores are close to the middle of the scale. The standard deviation suggests moderate variability in the data. The range of happiness scores reflects a broad distribution of values. The negative skewness indicates that, while there are some countries with low happiness scores, the majority have scores closer to the higher end of the scale.*
+
+
+
+### 2. **Happiness Score Distribution**
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=10, fig.height=4, dpi=300}
+ggplot(world_happiness, aes(x = Happiness_Score)) +
+  geom_histogram(binwidtgh = 0.5, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(
+    x = "Happiness Score",
+    y = "Frequency"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    axis.title.y = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold")
+  )
+```
+
+##### Interpretation:
+*The histogram displays the distribution of happiness scores across countries. The data shows a left-skewed distribution with most countries having happiness scores between 5 and 7, which aligns with the fact that the mean and median values are relatively high. The distribution also reveals a long tail towards the lower end, indicating a smaller number of countries with significantly lower happiness scores.*
+
+### 3. **GDP per Capita Distribution**
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=10, fig.height=4, dpi=300}
+ggplot(world_happiness, aes(x = GDP_per_Capita)) +
+  geom_histogram(fill = "darkred", color = "black", alpha = 0.7) +
+  labs(
+    x = "GDP per Capita",
+    y = "Frequency"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    axis.title.y = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold")
+  )
+```
+
+##### Interpretation:
+*The histogram of GDP per Capita shows a right-skewed distribution, with most countries clustered around a value of 1.5. This indicates that while many countries have moderate economic prosperity, a few wealthier nations contribute to the long tail on the right, highlighting global economic inequality. This distribution underscores the disparity between wealthier and less affluent nations, essential for understanding economic factors that may influence national well-being and happiness.*
+
+### 4. **Bivariate Analysis of Factors Influencing National Happiness**
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=10, fig.height=4, dpi=300}
+world_cor_happiness <- world_happiness %>%
+  pivot_longer(
+    cols = c(GDP_per_Capita, Social_Support, Healthy_Life_Expectancy),
+    names_to = "Factor",
+    values_to = "Value"
+  )
+
+# Create the faceted wrap plot
+ggplot(world_cor_happiness, aes(x = Value, y = Happiness_Score)) +
+  geom_point(color = "#01665e", alpha = 0.7) + # Scatter plot for each factor vs Happiness Score
+  labs(x = "Predictor Variables", y = "Happiness Score") +
+  facet_wrap(~Factor, scales = "free_x") + # Create a separate plot for each factor
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    axis.title.y = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"),
+    legend.background = element_blank(),
+    legend.key = element_blank()
+  )
+```
+
+##### Interpretation:
+*Each of these factors - GDP per capita, social support, and healthy life expectancy - shows a positive correlation with happiness. This indicates that economic prosperity, strong social networks, and better health contribute significantly to higher levels of national happiness.*
+
+
+### 5. **Median Happiness Score by Region and Year**
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=10, fig.height=4, dpi=300}
+# Calculate median happiness score by region and year
+median_happiness_by_region_year <- world_happiness %>%
+  group_by(Year, Continent) %>%
+  summarise(Median_Happiness_Score = median(Happiness_Score, na.rm = TRUE)) %>%
+  arrange(Year, Median_Happiness_Score)
+
+# Create the bar plot for median happiness score by region and year
+ggplot(median_happiness_by_region_year, aes(x = reorder(Continent, Median_Happiness_Score), y = Median_Happiness_Score, fill = as.factor(Year))) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+  labs(
+    x = "Continent",
+    y = "Median Happiness Score",
+    fill = "Year"
+  ) +
+  scale_fill_manual(values = year_colors) + # Apply custom colors for each year
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(size = 10, face = "bold"),
+    axis.title.y = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(size = 10, face = "bold"),
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(size = 10, face = "bold")
+  )
+```
+
+##### Interpretation:
+*The bar plot illustrates the median happiness scores by region from 2019 to 2024, showing a general upward trend across all regions. Europe and Oceania consistently report higher happiness scores, while Africa tends to have the lowest scores. Over time, all regions show improvement, with Americas and Asia falling in the middle range.*
+
+
+
+## **Analysis Approach**
+Exploratory data analysis will be conducted to examine distributions, detect outliers, and summarize key variables. For H1, the association between happiness and GDP per Capita, Social Support, and Life Expectancy will be assessed using scatter plots and linear regression.
+
+H2 will be explored by incorporating perceived Freedom and Generosity into the model, with interaction terms included to examine regional differences in effect sizes.
+
+For H3, the relationship between Corruption Perception and Happiness will be analyzed, both independently and in interaction with governance-related variables such as Social Support and Life Expectancy, to assess compound effects.
+
+## **Data Dictionary**
