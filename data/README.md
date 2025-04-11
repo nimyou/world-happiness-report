@@ -1,3 +1,8 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 
 # World Happiness Report Dataset
 
@@ -11,15 +16,9 @@ the UN Sustainable Development Solutions Network.
 The dataset provides insights into factors influencing happiness across various countries. 
 It includes data from multiple years, with each entry representing a country's performance in a given year.
 
-## Data Files
-
-The dataset consists of CSV files, each corresponding to a specific year. 
-For example, there are files for the years 2015 through 2023. Each file contains data for that particular year, 
-allowing for temporal analysis of happiness trends.
-
 ## Data Structure
 
-Each CSV file contains the following columns:
+CSV file contains the following columns:
 
 | Variable | Description |
 |----------|-------------|
@@ -39,11 +38,8 @@ Each CSV file contains the following columns:
 
 These variables are used to analyze and explain differences in happiness levels across countries.
 
-## Usage
-
-This dataset is valuable for analyzing global happiness trends, understanding the impact of various socio-economic factors on well-being, 
-and conducting comparative studies across different regions and time periods.
 
 ## Citation
-Helliwell, J. F., Layard, R., & Sachs, J. (Eds.). (Year). *World Happiness Report*. 
-Sustainable Development Solutions Network. Available at [https://worldhappiness.report/](https://worldhappiness.report/).
+Helliwell, J. F., Layard, R., Sachs, J., & De Neve, J. (Eds.). (2024). *World Happiness Report*. 
+University of Oxford’s Wellbeing Research Centre, Gallup, UN Sustainable Development Solutions Network.
+Available at [World Happiness Report](https://worldhappiness.report/).
