@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>World Happiness Report</title>
+    <meta charset="utf-8" />
+    <script src="presentation_files/header-attrs/header-attrs.js"></script>
+    <link href="presentation_files/panelset/panelset.css" rel="stylesheet" />
+    <script src="presentation_files/panelset/panelset.js"></script>
+    <link rel="stylesheet" href="my_theme.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+.title[
+# World Happiness Report
+]
+
+---
+
+
+
+
+
+
+
+
+
+
+## &lt;div class="header-bar"&gt;Background&lt;/div&gt;
+.pull-left[
+- **Happiness is a key indicator** of well-being, going beyond traditional economic measures.
+
+- The World Happiness Report (2019–2024) dives into what really makes nations happy.
+
+- A global survey, evaluates how income, social support, health, governance, and freedom affect happiness worldwide.
+
+- The report ranks 150+ countries based on happiness scores, derived from multiple factors such as **Economic**, **Social**, **Health** and **Governance**.
+]
+
+&lt;img src="img/wer-logo.png" width="32%" style="display: block; margin: auto 0 auto auto;" /&gt;
+--
+---
+## &lt;div class="header-bar"&gt;Research Questions&lt;/div&gt;
+  
+.pull-cen[
+### Question 1
+
+#### What are the most important economic, social, and governance factors influencing national happiness from 2019 to 2024, and how effectively can a statistical model capture their impact?
+.pull-cen[
+&lt;strong&gt;H₀&lt;/strong&gt;: Economic, social, and governance predictors do not significantly affect happiness scores.
+
+&lt;strong&gt;H₁&lt;/strong&gt;: Economic, social, and governance predictors significantly affect happiness scores.
+]
+
+### Question 2
+#### What distinguishes the happiest and least happy South Asian countries from 2019–2024, and where does Pakistan stand among them?
+
+]
+---
+## &lt;div class="header-bar"&gt;Data&lt;/div&gt;
+### Source
+- An annual survey that measures the subjective well-being and happiness of people **across 150+ countries**
+
+- Collected through the **Gallup World Poll**
+
+- Data spans from **2019 to 2024**, covering annual trends.
+
+### Data Cleaning and Preprocessing
+
+* Missing values were removed using `na.omit()` to ensure data accuracy.
+
+* Column names were standardized for clarity using `dplyr::rename()`.
+
+* Continent variable was created with the `countrycode()` function to enable regional comparisons.
+
+---
+
+## &lt;div class="header-bar"&gt;Question 1 - Approach&lt;/div&gt;
+
+.pull-cen[
+#### Used multiple linear regression to measure how key factors influence happiness scores, quantifies each factor’s impact and tests our hypothesis.
+]
+
+.panelset.sideways[
+.panel[.panel-name[Happiness Score - Distribution Plot] 
+&lt;img src="presentation_files/figure-html/unnamed-chunk-1-1.png" width="100%" /&gt;
+.footnote[The histogram shows most countries have happiness scores between 5 and 7, with a few countries much lower, creating a **left-skewed distribution**.]
+]
+
+.panel[.panel-name[GDP per Capita - Distribution Plot] 
+&lt;img src="presentation_files/figure-html/unnamed-chunk-2-1.png" width="100%" /&gt;
+.footnote[The histogram shows most countries have a mid-range GDP per capita, with fewer countries at the low or high extremes. The distribution is **slightly right-skewed**, indicating only a few nations enjoy much higher prosperity.]
+]
+.panel[.panel-name[Impact of Key Factors on Happiness] 
+&lt;img src="presentation_files/figure-html/unnamed-chunk-3-1.png" width="100%" /&gt;
+.footnote[**GDP, freedom, social support &amp; life expectancy** are **strongest predictors of happiness**, especially in Europe and Oceania; generosity and corruption have weaker, more variable effects]
+]
+.panel[.panel-name[Model]
+
+Table: Regression Coefficients for Full Model
+
+|                        | Estimate| Std. Error|  t value| Pr(&gt;&amp;#124;t&amp;#124;)|
+|:-----------------------|--------:|----------:|--------:|------------------:|
+|(Intercept)             |  2.04318|    0.09076| 22.51251|                  0|
+|GDP_per_Capita          |  0.70666|    0.06492| 10.88566|                  0|
+|Social_Support          |  0.80624|    0.08492|  9.49387|                  0|
+|Healthy_Life_Expectancy |  1.51775|    0.11657| 13.02033|                  0|
+|Freedom_to_Choose       |  1.00959|    0.14272|  7.07395|                  0|
+|Corruption_Perception   |  0.93727|    0.20024|  4.68072|                  0|
+|Generosity              |  1.51020|    0.25417|  5.94172|                  0|
+
+.footnote[The **model was constructed with `lm()` function**, including GDP per capita, Social Support, Healthy Life Expectancy, Freedom to Choose, Corruption Perception, and Generosity as predictors of happiness scores.
+]
+]
+]
+
+---
+## &lt;div class="header-bar"&gt;Question 1 - Modelling &amp; Results&lt;/div&gt;
+
+.panelset[
+
+.panel[.panel-name[Multicollinearity]
+
+&lt;img src="presentation_files/figure-html/unnamed-chunk-5-1.png" width="100%" /&gt;
+.footnote[**Dropping variables** which are **highly correlated** with each other.]
+]
+.panel[.panel-name[Reduced Model]
+
+- Dropped Life Expectancy and Social Support and **keeping GDP**, as it’s a more general and stable economic indicator.
+- Keeping **Freedom to Choose, Generosity and Corruption Perception**, they have moderate and unique contributions.
+
+
+Table: Regression Coefficients for Reduced Model
+
+|                      | Estimate| Std. Error|  t value| Pr(&gt;&amp;#124;t&amp;#124;)|
+|:---------------------|--------:|----------:|--------:|------------------:|
+|(Intercept)           |  2.54081|    0.10476| 24.25437|                  0|
+|GDP_per_Capita        |  1.37615|    0.06541| 21.04018|                  0|
+|Freedom_to_Choose     |  1.53255|    0.15797|  9.70170|                  0|
+|Corruption_Perception |  1.07553|    0.23364|  4.60337|                  0|
+|Generosity            |  1.91649|    0.30449|  6.29404|                  0|
+]
+
+.panel[.panel-name[95% CI]
+
+Table: 95% Confidence Intervals for Reduced Model Coefficients
+
+|                      | 2.5 %| 97.5 %|
+|:---------------------|-----:|------:|
+|(Intercept)           | 2.335|  2.746|
+|GDP_per_Capita        | 1.248|  1.505|
+|Freedom_to_Choose     | 1.223|  1.843|
+|Corruption_Perception | 0.617|  1.534|
+|Generosity            | 1.319|  2.514|
+
+.footnote[- **All variables** retained in the **reduced model**, GDP per Capita, Freedom to Choose, Corruption Perception, and Generosity have **statistically significant effects on happiness scores**. 
+- Their **95% confidence intervals do not include zero**, confirming their importance in predicting national happiness between 2019 and 2024.]
+
+]
+
+.panel[.panel-name[Diagnostic Plots]
+
+&lt;img src="presentation_files/figure-html/unnamed-chunk-8-1.png" width="100%" /&gt;
+
+.footnote[**Residuals are fairly evenly spread** with no strong curve, **supporting linearity**, though a slight downward trend suggests **minor non-linearity** may be present. Residuals largely follow the diagonal, suggesting **approximate normality**, with minor tail deviations. The red line is mostly flat, with consistent spread, suggesting constant variance holds reasonably well. **Points 435, 669, and 863** have **slightly higher leverage**, but **none exceed Cook’s distance** cutoff. No highly influential points detected. 
+]
+
+]
+.panel[.panel-name[Outliers]
+
+
+Table: Outliers and Their Cook’s Distance Values
+
+| Row|Country     | Year| Happiness_Score| Cooks_Distance|
+|---:|:-----------|----:|---------------:|--------------:|
+| 435|Lebanon     | 2022|           2.392|        0.02766|
+| 669|Rwanda      | 2021|           3.268|        0.04201|
+| 863|Afghanistan | 2024|           1.364|        0.03243|
+The following countries were flagged as outliers based on residual and leverage diagnostics.
+As shown in the table, **all Cook’s Distance values fall below the conventional threshold** (4/n), indicating they are not influential and were retained in the model.
+
+&lt;div class="middle-bar"&gt;Findings confirm the hypothesis: The reduced model shows that GDP, freedom, corruption perception, and generosity significantly predict happiness. Model diagnostics confirm validity, with no influential outliers detected. &lt;/div&gt;
+]
+]
+
+---
+## &lt;div class="header-bar"&gt;Question 2 - Approach&lt;/div&gt;
+
+.pull-cen[
+#### Used ANOVA to compare top and bottom performers in South Asia to assess regional disparities and Pakistan’s position.
+]
+
+.panelset.sideways[
+.panel[.panel-name[Happiness vs Predictors in SA]
+
+&lt;img src="presentation_files/figure-html/unnamed-chunk-10-1.png" width="100%" /&gt;
+.footnote[**Generosity, social support, freedom, and healthy life expectancy** appear to have the **strongest positive associations**, whereas corruption and GDP show more moderate influence.]
+]
+
+.panel[.panel-name[Correlation Matrix]
+
+
+Table: Correlation Matrix of Predictors with Average Happiness (South Asia)
+
+|                        | Correlation|
+|:-----------------------|-----------:|
+|Generosity              |       0.840|
+|Social_Support          |       0.785|
+|Freedom                 |       0.760|
+|Healthy_Life_Expectancy |       0.681|
+|GDP_per_Capita          |       0.529|
+|Corruption              |       0.418|
+.footnote[Generosity and Social Support are most strongly correlated with happiness among South Asian countries in the dataset. **GDP**, surprisingly, is **less strongly linked** compared to social or emotional factors.]
+]
+
+.panel[.panel-name[Modeling Happiness in South Asia]
+
+Three linear regression models were tested: 
+- Model 1 included Generosity
+- Model 2 added Social Support
+- Model 3 incorporated all predictors
+
+
+Table: Comparison of Regression Models
+
+|Model   |Predictors                  |   R_sq|  Adj_R| DF| p_value|
+|:-------|:---------------------------|------:|------:|--:|-------:|
+|Model 1 |Generosity                  | 0.7049| 0.6459|  5|  0.0181|
+|Model 2 |Generosity + Social Support | 0.7444| 0.6166|  4|  0.4759|
+|Model 3 |All Predictors              | 1.0000|    NaN|  0|     NaN|
+.footnote[**Model 1 (Generosity)** is statistically significant (**p = 0.0177**) and explains **64% of the variance in happiness**. Before drawing final conclusions about the best model, ANOVA will be performed to statistically test whether the additional predictors in Models 2 and 3 significantly improve the model fit compared to Model 1.]
+]
+
+]
+
+---
+## &lt;div class="header-bar"&gt;Question 2 - Modelling &amp; Results&lt;/div&gt;
+
+.panelset[
+
+.panel[.panel-name[ANOVA on models]
+
+Table: ANOVA: Model 1 vs Model 2
+
+| Residual DF|    RSS| DF| Sum Sq| F-value| p-value|
+|-----------:|------:|--:|------:|-------:|-------:|
+|           5| 2.1215| NA|     NA|      NA|      NA|
+|           4| 1.8378|  1| 0.2838|  0.6176|  0.4759|
+
+
+
+Table: ANOVA: Model 2 vs Model 3
+
+| Residual DF|    RSS| DF| Sum Sq| F-value| p-value|
+|-----------:|------:|--:|------:|-------:|-------:|
+|           4| 1.8378| NA|     NA|      NA|      NA|
+|           0| 0.0000|  4| 1.8378|     NaN|     NaN|
+.footnote[Based on both model performance metrics and ANOVA results, **Model 1 (Generosity only)** is the most **statistically valid model**, with strong significance (**p = 0.0177**). Adding more predictors did not significantly improve the model.]
+]
+
+.panel[.panel-name[Actual vs Predicted - Model 1]
+
+&lt;img src="presentation_files/figure-html/unnamed-chunk-14-1.png" width="100%" /&gt;
+.footnote[**Pakistan performs better** than predicted based on Generosity alone, suggesting the influence of additional unmodeled factors. Countries like India and Afghanistan, lie below the prediction line, indicating underperformance.]
+]
+
+.panel[.panel-name[Quantify Residuals]
+
+&lt;img src="presentation_files/figure-html/unnamed-chunk-15-1.png" width="100%" /&gt;
+&lt;div class="middle-bar"&gt;The results confirm that generosity, life expectancy, and freedom are key predictors of happiness in South Asia. Pakistan, ranked in the upper-middle tier, exceeded its predicted score, suggesting influence from additional unmodeled factors.&lt;/div&gt;
+]
+
+]
+---
+## &lt;div class="header-bar"&gt;Conclusion&lt;/div&gt;
+
+
+.pull-cen[
+
+**Happiness is a multidimensional outcome influenced by more than just economic factors. While GDP does play a role, my analysis shows that social support, emotional well-being, and good governance are equally important, particularly in regions like South Asia, where these non-economic factors often have a stronger impact on overall life satisfaction.**
+]
+---
+class: center, middle
+
+# Thank You.
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+  "slideNumberFormat": "%current%",
+  "highlightStyle": "github",
+  "highlightLines": true,
+  "ratio": "16:9",
+  "countIncrementalSlides": true,
+  "slideClass": "title-slide"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
