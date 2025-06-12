@@ -1,0 +1,580 @@
+---
+title: "Written Report - World Happiness"
+output:
+  pdf_document: default
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_depth: 2
+    df_print: paged
+    toc_float:
+      collapsed: true
+urlcolor: blue
+---
+```{r load-packages, message = FALSE, echo = FALSE}
+library(tidyverse)
+library(tidymodels)
+library(ggfortify)
+library(knitr)
+library(xaringanthemer)
+library(fs)
+library(dplyr)
+library(ggridges)
+library(forcats)
+library(scales)
+library(colorspace)
+library(ggrepel)
+library(cowplot)
+library(tidyverse)
+library(dplyr)
+library(skimr)
+library(broom)
+library(car)
+library(corrplot)
+library(ggcorrplot)
+library(moments)
+library(here)
+library(countrycode)
+library(ggsci)
+library(knitr)
+library(htmltools)
+library(shiny)
+library(viridis)
+library(ggridges)
+library(ggpubr)
+library(patchwork)
+library(e1071)
+library(gridExtra)
+library(GGally)
+```
+```{r load-data, include=FALSE}
+world_happiness <- read.csv("..//:data/world_happiness.csv")
+
+# Handle missing values (replace with mean or remove rows if excessive)
+world_happiness <- world_happiness %>% drop_na()
+
+# Rename columns for clarity
+world_happiness <- world_happiness %>% rename(
+  Country = Country.name,
+  Happiness_Rank = Rank,
+  Happiness_Score = Ladder.score,
+  Lower_Confidence = lowerwhisker,
+  Upper_Confidence = upperwhisker,
+  GDP_per_Capita = Explained.by..Log.GDP.per.capita,
+  Social_Support = Explained.by..Social.support,
+  Healthy_Life_Expectancy = Explained.by..Healthy.life.expectancy,
+  Freedom_to_Choose = Explained.by..Freedom.to.make.life.choices,
+  Corruption_Perception = Explained.by..Perceptions.of.corruption,
+  Generosity = Explained.by..Generosity,
+  Dystopia_Residual = Dystopia...residual
+)
+
+# Create new variable, Continent using the countrycode package
+world_happiness <- world_happiness %>%
+  mutate(
+    Continent = countrycode(
+      Country,
+      origin = "country.name",
+      destination = "continent",
+      custom_match = c(
+        "Kosovo" = "Europe", # Manual mappings
+        "Taiwan Province of China" = "Asia",
+        "Hong Kong SAR of China" = "Asia"
+      )
+    )
+  )
+
+# Custom diverging palette for continents
+continent_colors <- c(
+  "Europe" = "#d7191c", # Red
+  "Oceania" = "#ffffbf", # Orange
+  "Americas" = "#fdae61", # Yellow (light)
+  "Africa" = "#abd9e9", # Light blue
+  "Asia" = "#2c7bb6" # Dark blue
+)
+
+# Define custom colors for each year (2019 to 2024)
+year_colors <- c(
+  "2019" = "#8c510a", # Brownish Orange
+  "2020" = "#d8b365", # Light Brown
+  "2021" = "#f6e8c3", # Very Light Yellow
+  "2022" = "#c7eae5", # Light Teal
+  "2023" = "#5ab4ac", # Teal
+  "2024" = "#01665e" # Dark Teal
+)
+``` 
+
+## I. Introduction and Data
+
+Happiness is increasingly recognized as a vital measure of human well-being, often offering a more holistic perspective on quality of life than traditional economic metrics alone. The World Happiness Report spanning 2019 to 2024 compiles data from countries around the globe to assess how various factors, ranging from income and social support to health, governance, and freedom, contribute to overall national happiness levels. But beyond the commonly measured economic indicators, how do social and governance factors impact a nation's happiness? One of the key columns happiness score serves as our primary measure of national well-being. My goal was to answer two research questions: 
+
+1. What are the most important economic, social, and governance factors influencing national happiness from 2019 to 2024, and how effectively can a statistical model capture their impact?
+
+2. What distinguishes the happiest and least happy South Asian countries from 2019–2024, and where does Pakistan stand among them?
+
+The dataset is derived from the **World Happiness Report**, an annual study based on data collected by the **Gallup World Poll**, supplemented with official statistics from sources such as the **World Bank, World Health Organization (WHO), and the United Nations**. The data is collected through large-scale surveys where individuals rate their overall life satisfaction on a scale of **0 to 10**.
+This dataset is derived from the [World Happiness Report](https://worldhappiness.report/).
+
+**All preprocessing was performed in R, using packages such as dplyr, ggplot2, and countrycode.**
+
+## II. Methodology
+
+### Data Cleaning
+
+To begin, I cleaned the dataset by removing missing values to ensure integrity in modeling. Variables were renamed for clarity. Additionally, using the `countrycode package`, a new column named Continent was created to allow for comparative analysis across regions. Kosovo, Hong Kong SAR, and Taiwan were manually mapped to their appropriate continents.
+
+### Exploratory Data Analysis (EDA)
+
+My exploratory phase started with inspecting the **distribution of happiness scores**. A histogram (Figure 1) revealed a left-skewed pattern, showing that while many countries fall between a happiness score of 5 to 7, a few countries score significantly lower. 
+
+\newpage
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=9, fig.height=3, dpi=300, fig.cap="Distribution of Happiness Scores"}
+ggplot(world_happiness, aes(x = Happiness_Score)) +
+  geom_histogram(binwidth = 0.5, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(
+    x = "Happiness Score",
+    y = "Frequency"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.title.x = element_text(size = 10, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    axis.title.y = element_text(size = 10, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold")
+  )
+```
+
+**Distribution of GDP per Capita** was examined and it was found out that the histogram for this predictor was slightly right-skewed, illustrating global economic disparity (Figure 2).
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=9, fig.height=3, dpi=300, fig.cap= "Distribution of GDP per Capita"}
+ggplot(world_happiness, aes(x = GDP_per_Capita)) +
+  geom_histogram(fill = "darkred", color = "black", alpha = 0.7) +
+  labs(
+    x = "GDP per Capita",
+    y = "Frequency"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.title.x = element_text(size = 10, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    axis.title.y = element_text(size = 10, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold")
+  )
+```
+
+***
+
+## III. Question 1: 
+
+**What are the most important economic, social, and governance factors influencing national happiness from 2019 to 2024, and how effectively can a statistical model capture their impact?**
+
+**Null Hypothesis (H0):**
+Economic, social, and governance predictors do not significantly affect happiness scores.
+
+**Alternative Hypothesis (H1):**
+Economic, social, and governance predictors significantly affect happiness scores.
+
+
+I began by exploring the relationship between happiness and six primary predictors: GDP per Capita, Social Support, Healthy Life Expectancy, Freedom to Choose, Corruption Perception, and Generosity. I created a faceted scatterplot matrix colored by continent. 
+
+This visualization showed **strong positive relationships** for GDP, social support, life expectancy, and freedom. In contrast, generosity and corruption displayed weaker, less consistent correlations. Then I **fitted a multiple linear regression model** to examine the relationship between happiness scores and all six predictors. This comprehensive model allowed me to initially assess the relative influence of each predictor (Table 1)
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=8, fig.height=2, dpi=300}
+model <- lm(
+  Happiness_Score ~ GDP_per_Capita + Social_Support + Healthy_Life_Expectancy +
+    Freedom_to_Choose + Corruption_Perception + Generosity,
+  data = world_happiness
+)
+
+kable(summary(model)$coefficients, caption = "Regression Coefficients for Full Model")
+```
+
+The model was constructed with `lm()` function, including GDP per capita, Social Support, Healthy Life Expectancy, Freedom to Choose, Corruption Perception, and Generosity as predictors of happiness scores.
+All **p-values are extremely small (p < 0.001)**, indicating that each of the predictors is statistically significant in explaining variations in happiness scores.
+
+To identify potential multicollinearity, I **generated a pairwise correlation matrix using `ggpairs`**(Figure 3). This analysis revealed a strong positive correlation among GDP per Capita, Social Support, and Healthy Life Expectancy. The visual patterns confirmed that these predictors overlapped significantly in the variance they explained.
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=10, fig.height=6, dpi=300, fig.cap=" Pairwise Correlation Matrix of Happiness Predictors"}
+num_vars <- world_happiness %>%
+  select(
+    GDP_per_Capita, Social_Support,
+    Healthy_Life_Expectancy, Freedom_to_Choose, Generosity,
+    Corruption_Perception
+  )
+colnames(num_vars) <- c(
+  "GDP",
+  "Social\nSupport",
+  "Life\nExpectancy",
+  "Freedom\nto Choose",
+  "Generosity",
+  "Corruption\nPerception"
+)
+ggpairs(
+  num_vars,
+  title = "Pairwise Correlation Matrix of Happiness Predictors",
+  upper = list(continuous = wrap("cor", size = 5, color = "#2E86C1")),
+  lower = list(continuous = wrap("smooth", alpha = 0.4, color = "#4D4D4D")), # alpha added here
+  diag = list(continuous = wrap("densityDiag", fill = "#F5B041"))
+) +
+  theme_bw(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 12),
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10),
+    strip.text = element_text(size = 8)
+  )
+```
+
+
+\newpage
+
+Given the substantial multicollinearity observed in the correlation matrix—particularly among GDP per Capita, Social Support, and Life Expectancy, I simplified the model by **excluding Social Support and Life Expectancy**. These variables, while important, show strong correlations with GDP (0.62 and 0.52 respectively), which can inflate variance and obscure the unique contribution of each predictor. 
+
+I **retained GDP per Capita** as a more comprehensive and stable economic indicator. Additionally, I **kept Freedom to Choose and Corruption Perception** due to their conceptual independence and **strong policy relevance**. **Generosity was also included** to **account for socio-cultural dimensions** that may not be captured by institutional or economic variables.
+
+
+The refined regression model (Table 2) showed that all four retained predictors, GDP per Capita, Freedom to Choose, Corruption Perception, and Generosity were statistically significant, each with p-values well below the conventional threshold. 
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=9, fig.height=3.5, dpi=300}
+reduced_model <- lm(Happiness_Score ~ GDP_per_Capita + Freedom_to_Choose + Corruption_Perception + Generosity, data = world_happiness)
+
+kable(summary(reduced_model)$coefficients, caption = "Regression Coefficients for Reduced Model", digits = 5)
+```
+
+Moreover, the **95% confidence intervals** for their coefficients **did not include zero**, reinforcing the strength and reliability of their individual associations with national happiness scores. These results indicate that the **selected variables contribute** meaningfully and independently to **explaining variations in happiness across countries**. (Table 3).
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=12, fig.height=2, dpi=300}
+# confint(reduced_model)
+
+kable(confint(reduced_model), caption = "95% Confidence Intervals for Reduced Model Coefficients", digits = 3)
+```
+
+To check if our simplified regression model was a good fit, I looked at some key diagnostic plots (Figure 4):
+
+- The **Residuals vs Fitted plot** didn’t show any clear pattern, which means the relationship between predictors and the **outcome looks linear**.
+- The **Normal Q-Q plot** showed that the residuals mostly **followed a straight line**, suggesting they are nearly **normally distributed**, with just small differences at the ends.
+- The **Scale-Location plot** showed that the spread of residuals stayed fairly constant, meaning the **model has constant variance**.
+- The **Residuals vs Leverage** plot showed that most **data points had low influence**, but three points (435, 669, and 863) had slightly higher leverage or bigger residuals.
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=8, fig.height=5, dpi=300, fig.cap="Diagnostic Plots for Reduced Linear Regression Model"}
+autoplot(reduced_model,
+  smooth.colour = "red",
+  smooth.size = 0.8,
+  shape = 21,
+  # colour = "grey30",
+  size = 0.5,
+  label.size = 2,
+  label.hjust = 0.5,
+  label.colour = "blue",
+  ncol = 2,
+  title = "Diagnostic Plots for Reduced Linear Regression Model"
+) +
+  theme_gray(base_size = 4) +
+  theme(
+    strip.text = element_text(size = 6, face = "bold"),
+    axis.text = element_text(size = 7),
+    plot.title = element_text(hjust = 0.5, size = 10),
+    panel.grid.major = element_line(size = 0.15),
+    axis.title = element_text(size = 8)
+  )
+```
+
+
+To ensure robust interpretation, I analyzed Cook’s Distance values. Three cases: **Lebanon, Rwanda, and Afghanistan** appeared as **outliers in residual and leverage terms**. However, their Cook’s distance values remained below the conventional threshold, meaning their presence did not distort model estimates (Table 4). Collectively, these diagnostics affirm the robustness and validity of the fitted model.
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=4, fig.height=1.25, dpi=300}
+# Calculate Cook’s Distance
+cooksD <- cooks.distance(reduced_model)
+
+# Set threshold: 4 / n
+n <- nrow(world_happiness)
+threshold <- 4 / n
+
+# Bind Cook's D back to the data
+cooks_df <- world_happiness %>%
+  mutate(
+    Cooks_Distance = cooksD,
+    Row = row_number()
+  ) %>%
+  filter(Row %in% c(435, 669, 863)) %>%
+  select(Row, Country, Year, Happiness_Score, Cooks_Distance)
+
+# Display as table
+kable(cooks_df, digits = 5, caption = "Outliers and Their Cook’s Distance Values")
+```
+
+These countries were retained in the final model as they represent meaningful real world extremes that are essential to preserve in global level analysis. Their inclusion maintains external validity and enhances interpretability, especially for regions affected by war, fragility, or institutional breakdown.
+
+### Conclusion
+**Findings confirm the hypothesis: The reduced model shows that GDP, freedom, corruption perception, and generosity significantly predict happiness. Model diagnostics confirm validity, with no influential outliers detected.**
+
+***
+\newpage
+
+## III. Question 2:
+
+**What distinguishes the happiest and least happy South Asian countries from 2019–2024, and where does Pakistan stand among them?**
+
+To analyze regional disparities in happiness within South Asia, I focused on eight countries: Pakistan, India, Bangladesh, Sri Lanka, Nepal, Bhutan, Maldives, and Afghanistan. The objective was to compare averages of happiness scores and its predictors, identify top and bottom performers, and evaluate Pakistan’s relative standing.
+
+The dataset was first filtered to include only these countries, and averages for happiness and key predictors were computed across the six-year period (2019–2024). This generated a clean summary for each country, facilitating fair comparisons despite year-to-year variability (Table 5).
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=6, fig.height=3, dpi=300}
+# Define South Asian countries
+south_asia <- c(
+  "Pakistan", "India", "Bangladesh", "Sri Lanka",
+  "Nepal", "Bhutan", "Maldives", "Afghanistan"
+)
+
+south_asia_data <- world_happiness %>%
+  filter(Country %in% south_asia)
+
+# Group by Country and calculate mean happiness and mean of predictors
+south_asia_avg <- south_asia_data %>%
+  group_by(Country) %>%
+  summarise(
+    Avg.Happiness = mean(Happiness_Score, na.rm = TRUE),
+    Avg.GDP = mean(GDP_per_Capita, na.rm = TRUE),
+    Avg.Social = mean(Social_Support, na.rm = TRUE),
+    Avg.Healthy = mean(Healthy_Life_Expectancy, na.rm = TRUE),
+    Avg.Freedom = mean(Freedom_to_Choose, na.rm = TRUE),
+    Avg.Generosity = mean(Generosity, na.rm = TRUE),
+    Avg.Corruption = mean(Corruption_Perception, na.rm = TRUE)
+  )
+
+knitr::kable(south_asia_avg, caption = "Average Happiness and Predictors in South Asian Countries (2019–2024)", digits = 3)
+```
+
+To examine how predictors relate to happiness across these nations, I plotted average happiness scores against six core predictors: GDP per Capita, Social Support, Healthy Life Expectancy, Freedom to Choose, Generosity, and Corruption Perception. The resulting faceted scatter plot revealed that a **positive relationship for most predictors**, with freedom, generosity, and social support showing particularly strong associations with happiness. While **GDP per capita and healthy life expectancy exhibit moderate positive associations**, the influence of freedom and generosity appears to be more pronounced. These trends **suggest that beyond economic prosperity, emotional and social dimensions** play a **vital role** in shaping national well-being in South Asia. (Figure 5).
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=6, fig.height=3, dpi=300, fig.cap= "Associations Between Average Happiness and Predictors"}
+# Categorize countries
+south_asia_avg <- south_asia_avg %>%
+  mutate(Category = case_when(
+    Country %in% Country[order(-Avg.Happiness)][1:2] ~ "Top 2",
+    Country %in% Country[order(Avg.Happiness)][1:2] ~ "Bottom 2",
+    Country == "Pakistan" ~ "Pakistan",
+    TRUE ~ "Others"
+  ))
+
+# Reshape data for faceted plotting
+south_asia_cor_happiness <- south_asia_avg %>%
+  select(
+    Country, Avg.Happiness, Avg.GDP, Avg.Social,
+    Avg.Healthy, Avg.Freedom, Avg.Generosity, Avg.Corruption
+  ) %>%
+  pivot_longer(
+    cols = -c(Country, Avg.Happiness),
+    names_to = "Factor",
+    values_to = "Value"
+  )
+
+# Create faceted scatter plot
+ggplot(south_asia_cor_happiness, aes(x = Value, y = Avg.Happiness)) +
+  geom_point(aes(color = Country), size = 1.5) +
+  # geom_smooth(method = "lm", se = FALSE, color = "gray30") +
+  facet_wrap(~Factor, scales = "free_x") +
+  scale_color_viridis(discrete = TRUE) +
+  labs(
+    title = "Associations Between Average Happiness and Predictors",
+    x = "Predictors",
+    y = "Happiness Score"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_gray(base_size = 8) +
+  theme(
+    plot.title = element_text(size = 8, face = "bold", hjust = 0.5),
+    axis.title.x = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.title.y = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"),
+    legend.background = element_blank(),
+    strip.text = element_text(size = 8),
+    legend.key = element_blank(),
+    legend.key.height = unit(0.7, "lines"),
+    legend.key.width = unit(1, "lines")
+  )
+```
+
+To quantify the observed relationships, I computed a correlation matrix for South Asian countries (Table 6). The results revealed that **Generosity and Social Support** had the **strongest positive correlations** with happiness (0.840 and 0.785, respectively), highlighting the importance of communal and emotional factors in the region. 
+
+These were followed by Freedom to Choose (0.760) and Healthy Life Expectancy (0.681), both of which also showed moderately strong associations. Notably, **GDP per Capita**, which is typically among the most influential predictors in global analyses, exhibited a comparatively weaker correlation (0.529) within this regional subset. 
+
+Similarly, **Corruption Perception had the lowest correlation (0.418)**, suggesting that **economic and institutional variables may play a less dominant role** in determining happiness levels across South Asian nations compared to more socially grounded indicators.
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=10, fig.height=6, dpi=300}
+# Select only numeric predictor columns + happiness
+cor_data <- south_asia_avg %>%
+  select(
+    Avg.Happiness, Avg.GDP, Avg.Social,
+    Avg.Healthy, Avg.Freedom, Avg.Generosity, Avg.Corruption
+  )
+# Compute correlation matrix
+cor_matrix <- cor(cor_data, use = "complete.obs")
+
+# Show only correlations with happiness
+cor_with_happiness <- cor_matrix["Avg.Happiness", -1]
+
+cor_df <- data.frame(
+  # Predictor = names(cor_with_happiness),
+  Correlation = round(cor_with_happiness, 3)
+) %>%
+  arrange(desc(abs(Correlation)))
+
+knitr::kable(cor_df, caption = "Correlation Matrix", digits = 3)
+```
+To better understand which variables most effectively explain the variation in happiness across South Asian countries, I developed a sequence of three linear regression models:
+
+- Model 1: Included only Generosity.
+- Model 2: Added Social Support.
+- Model 3: Included all predictors (GDP, Life Expectancy, Freedom, Corruption, etc.).
+
+Despite its simplicity, **Model 1 was statistically significant (p = 0.0177)** and accounted for **approximately 64.6% of the variance** in happiness (Table 7). Although Models 2 and 3 showed slightly higher R-squared values, ANOVA comparisons (Tables 8 and 9) indicated that these increases were not statistically significant, suggesting that **Generosity alone captures most of the meaningful variation** in happiness within this regional context.
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=10, fig.height=4, dpi=300}
+# Model 1: Happiness ~ Generosity
+model1 <- lm(Avg.Happiness ~ Avg.Generosity, data = south_asia_avg)
+
+
+# Model 2: Happiness ~ Generosity + Social Support
+model2 <- lm(Avg.Happiness ~ Avg.Generosity + Avg.Social, data = south_asia_avg)
+
+# Model 3: Generosity + Social Support + Healthy Life Expectancy
+model3 <- lm(Avg.Happiness ~ Avg.Generosity + Avg.Social + Avg.Healthy + Avg.Freedom + Avg.GDP + Avg.Corruption, data = south_asia_avg)
+
+# Extract
+model_summary <- tibble(
+  Model = c("Model 1", "Model 2", "Model 3"),
+  Predictors = c(
+    "Generosity",
+    "Generosity + Social Support",
+    "All Predictors"
+  ),
+  R_sq = c(
+    summary(model1)$r.squared,
+    summary(model2)$r.squared,
+    summary(model3)$r.squared
+  ),
+  Adj_R = c(
+    summary(model1)$adj.r.squared,
+    summary(model2)$adj.r.squared,
+    summary(model3)$adj.r.squared
+  ),
+  DF = c(
+    df.residual(model1),
+    df.residual(model2),
+    df.residual(model3)
+  ),
+  p_value = c(
+    summary(model1)$fstatistic %>%
+      {
+        pf(.[1], .[2], .[3], lower.tail = FALSE)
+      },
+    anova(model1, model2)$"Pr(>F)"[2],
+    anova(model2, model3)$"Pr(>F)"[2]
+  )
+)
+
+knitr::kable(model_summary, digits = 4, caption = "Comparison of Regression Models")
+
+anova_res <- anova(model1, model2)
+colnames(anova_res) <- c("Residual DF", "RSS", "DF", "Sum Sq", "F-value", "p-value")
+kable(anova_res, digits = 4, caption = "ANOVA: Model 1 vs Model 2")
+
+anova_res <- anova(model2, model3)
+colnames(anova_res) <- c("Residual DF", "RSS", "DF", "Sum Sq", "F-value", "p-value")
+kable(anova_res, digits = 4, caption = "ANOVA: Model 2 vs Model 3")
+```
+
+
+Based on its statistical significance, simplicity, and strong explanatory power, Model 1, using Generosity as the sole predictor, was selected as the final model for interpretation. This **model was used to predict average happiness scores** for all South Asian countries, which were then compared to their actual observed scores (Figure 6). 
+
+\newpage
+
+Notably, **Pakistan performs better than the model predicts**, indicating the likely influence of additional positive factors not captured by Generosity alone, such as cultural, institutional, or historical dynamics. **In contrast, countries like India and Afghanistan fall below the prediction line**, suggesting lower-than-expected happiness scores relative to their generosity levels. 
+
+**These deviations highlight the complexity of happiness** as an outcome and suggest that while generosity is a strong predictor, other unmodeled variables may contribute meaningfully to a country’s overall well-being..
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=6, fig.height=2, dpi=300, fig.cap= "Actual vs Predicted Happiness (Model 1: Generosity)"}
+# Add predicted values to the dataset
+south_asia_avg$Predicted_Happiness <- predict(model1)
+
+# Add residuals (optional, to show error)
+south_asia_avg$Residual <- south_asia_avg$Avg.Happiness - south_asia_avg$Predicted_Happiness
+
+
+# Create a flag for Pakistan
+south_asia_avg$Highlight <- ifelse(south_asia_avg$Country == "Pakistan", "Pakistan", "Other")
+
+# Plot
+ggplot(south_asia_avg, aes(x = Predicted_Happiness, y = Avg.Happiness, label = Country)) +
+  geom_point(aes(color = Highlight), size = 3) +
+  geom_text(vjust = -1.5, hjust = 0.5, size = 2, fontface = "bold") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray40") +
+  scale_color_manual(values = c("Pakistan" = "#d95f02", "Other" = "steelblue")) +
+  scale_y_continuous(limits = c(2, 6)) +
+  labs(
+    title = "Actual vs Predicted Happiness (Model 1: Generosity)",
+    x = "Predicted Happiness",
+    y = "Actual Happiness"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 8, face = "bold", hjust = 0.5),
+    axis.title.x = element_text(size = 8, hjust = 0.5, face = "bold"),
+    # axis.text.x = element_blank(),
+    axis.title.y = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(size = 6, face = "bold"),
+    axis.text.y = element_text(size = 6, face = "bold"),
+    legend.position = "none"
+  )
+```
+
+To explore the model’s accuracy in greater depth, I calculated the residuals defined as the difference between actual and predicted happiness scores for each South Asian country and visualized them using a bar chart (Figure 7). 
+
+This **residual analysis reinforced earlier observations**, most notably **Pakistan’s positive deviation from the predicted value**. This suggests that factors beyond generosity such as cultural norms, informal social networks, or specific national policies may be enhancing perceived well-being in the country. On the other hand, countries like India, Afghanistan, and Bangladesh show negative residuals, indicating they reported lower happiness than predicted based on generosity alone. These discrepancies highlight the potential influence of unmodeled variables and underscore the multifaceted nature of happiness as a socio-economic outcome.
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=6, fig.height=2, dpi=300 , fig.cap= "Quantify Residuals"}
+# Residual = Actual - Predicted
+south_asia_avg$Residual <- south_asia_avg$Avg.Happiness - south_asia_avg$Predicted_Happiness
+
+# Bar plot: Residuals (Actual - Predicted)
+south_asia_avg %>%
+  mutate(Country = reorder(Country, Residual)) %>%
+  ggplot(aes(x = Country, y = Residual, fill = Country == "Pakistan")) +
+  geom_col() +
+  scale_fill_manual(values = c("TRUE" = "#d95f02", "FALSE" = "steelblue"), guide = FALSE) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  coord_flip() +
+  labs(
+    title = "Residuals: Actual - Predicted Happiness (Model 1)",
+    y = "Residual (Actual - Predicted)",
+    x = "Country"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.title.x = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.title.y = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(size = 6, face = "bold"),
+    legend.title = element_text(face = "bold"),
+    legend.background = element_blank(),
+    legend.key = element_blank()
+  )
+```
+
+
+### Conclusion
+
+The **regional analysis reveals that Generosity is the strongest single predictor of happiness among South Asian countries**. While GDP remains less influential here compared to global trends, factors like Social Support, Freedom, and Life Expectancy also matter. **Pakistan ranks in the upper-middle tier** and exceeds its predicted happiness score based on generosity, hinting at hidden or context specific factors contributing to its well-being. Future research could explore variables such as trust, religiosity, or resilience to better explain such anomalies.
+
+***
+
+## IV. Conclusion
+
+Happiness is a multidimensional outcome shaped by a complex interplay of economic, social, and governance-related factors. While GDP per capita contributes to well-being, my regional analysis demonstrates that it is not the sole or even the strongest determinant particularly in South Asia. Instead, factors such as social support, emotional well-being, personal freedom, generosity, and perceived integrity of institutions play equally, if not more, significant roles in influencing happiness levels. These non economic dimensions appear to carry greater weight in shaping life satisfaction within this context, highlighting the importance of a holistic, people centered approach to development. 
