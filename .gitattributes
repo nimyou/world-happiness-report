@@ -1,0 +1,6 @@
+*.R linguist-language=R
+*.Rmd linguist-language=R
+*.rproj linguist-language=R
+*.html linguist-detectable=false
+*.css linguist-detectable=false
+*.js linguist-detectable=false
