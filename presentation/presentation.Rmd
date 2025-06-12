@@ -1,0 +1,673 @@
+---
+title: 'World Happiness Report'
+output:
+  xaringan::moon_reader:
+    css: my_theme.css
+    nature:
+      slideNumberFormat: "%current%"
+      highlightStyle: github
+      highlightLines: true
+      ratio: 16:9
+      countIncrementalSlides: true
+      slideClass: ["title-slide"]
+---
+
+```{r setup, include=FALSE}
+xaringanExtra::use_panelset()
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(
+  fig.width = 9, fig.height = 3.5, fig.retina = 3,
+  out.width = "100%",
+  cache = FALSE,
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  hiline = TRUE
+)
+```
+
+```{r load-packages, include = FALSE}
+library(tidyverse)
+library(tidymodels)
+library(ggfortify)
+library(knitr)
+library(xaringanthemer)
+library(fs)
+library(dplyr)
+library(ggridges)
+library(forcats)
+library(scales)
+library(colorspace)
+library(ggrepel)
+library(cowplot)
+library(tidyverse)
+library(dplyr)
+library(skimr)
+library(broom)
+library(car)
+library(corrplot)
+library(ggcorrplot)
+library(moments)
+library(here)
+library(countrycode)
+library(ggsci)
+library(knitr)
+library(htmltools)
+library(shiny)
+library(viridis)
+library(ggridges)
+library(ggpubr)
+library(patchwork)
+library(e1071)
+library(gridExtra)
+library(GGally)
+```
+
+```{r load-data, include=FALSE}
+world_happiness <- read.csv("..//:data/world_happiness.csv")
+
+# Handle missing values (replace with mean or remove rows if excessive)
+world_happiness <- world_happiness %>% drop_na()
+
+# Rename columns for clarity
+world_happiness <- world_happiness %>% rename(
+  Country = Country.name,
+  Happiness_Rank = Rank,
+  Happiness_Score = Ladder.score,
+  Lower_Confidence = lowerwhisker,
+  Upper_Confidence = upperwhisker,
+  GDP_per_Capita = Explained.by..Log.GDP.per.capita,
+  Social_Support = Explained.by..Social.support,
+  Healthy_Life_Expectancy = Explained.by..Healthy.life.expectancy,
+  Freedom_to_Choose = Explained.by..Freedom.to.make.life.choices,
+  Corruption_Perception = Explained.by..Perceptions.of.corruption,
+  Generosity = Explained.by..Generosity,
+  Dystopia_Residual = Dystopia...residual
+)
+
+# Create new variable, Continent using the countrycode package
+world_happiness <- world_happiness %>%
+  mutate(
+    Continent = countrycode(
+      Country,
+      origin = "country.name",
+      destination = "continent",
+      custom_match = c(
+        "Kosovo" = "Europe", # Manual mappings
+        "Taiwan Province of China" = "Asia",
+        "Hong Kong SAR of China" = "Asia"
+      )
+    )
+  )
+
+# Custom diverging palette for continents
+continent_colors <- c(
+  "Europe" = "#d7191c", # Red
+  "Oceania" = "#ffffbf", # Orange
+  "Americas" = "#fdae61", # Yellow (light)
+  "Africa" = "#abd9e9", # Light blue
+  "Asia" = "#2c7bb6" # Dark blue
+)
+
+# Define custom colors for each year (2019 to 2024)
+year_colors <- c(
+  "2019" = "#8c510a", # Brownish Orange
+  "2020" = "#d8b365", # Light Brown
+  "2021" = "#f6e8c3", # Very Light Yellow
+  "2022" = "#c7eae5", # Light Teal
+  "2023" = "#5ab4ac", # Teal
+  "2024" = "#01665e" # Dark Teal
+)
+``` 
+
+```{r title-slides, echo = FALSE, fig.align='left'}
+# style_xaringan(title_slide_background_image = "img/world-light.jpg")
+```
+
+## <div class="header-bar">Background</div>
+.pull-left[
+- **Happiness is a key indicator** of well-being, going beyond traditional economic measures.
+
+- The World Happiness Report (2019–2024) dives into what really makes nations happy.
+
+- A global survey, evaluates how income, social support, health, governance, and freedom affect happiness worldwide.
+
+- The report ranks 150+ countries based on happiness scores, derived from multiple factors such as **Economic**, **Social**, **Health** and **Governance**.
+]
+
+```{r WER logo, echo=FALSE, out.width = "32%", fig.align="right"}
+include_graphics("img/wer-logo.png")
+```
+--
+---
+## <div class="header-bar">Research Questions</div>
+  
+.pull-cen[
+### Question 1
+
+#### What are the most important economic, social, and governance factors influencing national happiness from 2019 to 2024, and how effectively can a statistical model capture their impact?
+.pull-cen[
+<strong>H₀</strong>: Economic, social, and governance predictors do not significantly affect happiness scores.
+
+<strong>H₁</strong>: Economic, social, and governance predictors significantly affect happiness scores.
+]
+
+### Question 2
+#### What distinguishes the happiest and least happy South Asian countries from 2019–2024, and where does Pakistan stand among them?
+
+]
+---
+## <div class="header-bar">Data</div>
+### Source
+- An annual survey that measures the subjective well-being and happiness of people **across 150+ countries**
+
+- Collected through the **Gallup World Poll**
+
+- Data spans from **2019 to 2024**, covering annual trends.
+
+### Data Cleaning and Preprocessing
+
+* Missing values were removed using `na.omit()` to ensure data accuracy.
+
+* Column names were standardized for clarity using `dplyr::rename()`.
+
+* Continent variable was created with the `countrycode()` function to enable regional comparisons.
+
+---
+
+## <div class="header-bar">Question 1 - Approach</div>
+
+.pull-cen[
+#### Used multiple linear regression to measure how key factors influence happiness scores, quantifies each factor’s impact and tests our hypothesis.
+]
+
+.panelset.sideways[
+.panel[.panel-name[Happiness Score - Distribution Plot] 
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=8, fig.height=3, dpi=300}
+ggplot(world_happiness, aes(x = Happiness_Score)) +
+  geom_histogram(binwidth = 0.5, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(
+    x = "Happiness Score",
+    y = "Frequency"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    axis.title.y = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold")
+  )
+```
+.footnote[The histogram shows most countries have happiness scores between 5 and 7, with a few countries much lower, creating a **left-skewed distribution**.]
+]
+
+.panel[.panel-name[GDP per Capita - Distribution Plot] 
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=10, fig.height=4, dpi=300}
+ggplot(world_happiness, aes(x = GDP_per_Capita)) +
+  geom_histogram(fill = "darkred", color = "black", alpha = 0.7) +
+  labs(
+    x = "GDP per Capita",
+    y = "Frequency"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    axis.title.y = element_text(size = 12, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold")
+  )
+```
+.footnote[The histogram shows most countries have a mid-range GDP per capita, with fewer countries at the low or high extremes. The distribution is **slightly right-skewed**, indicating only a few nations enjoy much higher prosperity.]
+]
+.panel[.panel-name[Impact of Key Factors on Happiness] 
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=10, fig.height=4, dpi=300}
+# Long format for faceting
+world_cor_happiness <- world_happiness %>%
+  pivot_longer(
+    cols = c(
+      GDP_per_Capita, Social_Support, Healthy_Life_Expectancy,
+      Freedom_to_Choose, Generosity, Corruption_Perception
+    ),
+    names_to = "Factor", values_to = "Value"
+  )
+
+# Faceted plot to visualize correlation between Happiness Score and Contributing Factors
+ggplot(world_cor_happiness, aes(x = Value, y = Happiness_Score, color = Continent)) +
+  geom_point(alpha = 0.8) +
+  facet_wrap(~Factor, drop = TRUE) +
+  # scale_color_manual(values = continent_colors) +
+  scale_color_viridis(discrete = TRUE) +
+  labs(
+    title = "Associations Between Happiness and Key Development Indicators",
+    x = "Contributing Factors",
+    y = "Happiness Score",
+    color = "Continents"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 4))) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.title.x = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    axis.title.y = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"),
+    legend.background = element_blank(),
+    legend.key = element_blank()
+  )
+```
+.footnote[**GDP, freedom, social support & life expectancy** are **strongest predictors of happiness**, especially in Europe and Oceania; generosity and corruption have weaker, more variable effects]
+]
+.panel[.panel-name[Model]
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=8, fig.height=2, dpi=300}
+model <- lm(
+  Happiness_Score ~ GDP_per_Capita + Social_Support + Healthy_Life_Expectancy +
+    Freedom_to_Choose + Corruption_Perception + Generosity,
+  data = world_happiness
+)
+
+kable(summary(model)$coefficients, caption = "Regression Coefficients for Full Model", digits = 5)
+```
+
+.footnote[The **model was constructed with `lm()` function**, including GDP per capita, Social Support, Healthy Life Expectancy, Freedom to Choose, Corruption Perception, and Generosity as predictors of happiness scores.
+]
+]
+]
+
+---
+## <div class="header-bar">Question 1 - Modelling & Results</div>
+
+.panelset[
+
+.panel[.panel-name[Multicollinearity]
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=9, fig.height=3.5, dpi=300}
+num_vars <- world_happiness %>%
+  select(
+    GDP_per_Capita, Social_Support,
+    Healthy_Life_Expectancy, Freedom_to_Choose, Generosity,
+    Corruption_Perception
+  )
+colnames(num_vars) <- c(
+  "GDP",
+  "Social\nSupport",
+  "Life\nExpectancy",
+  "Freedom\nto Choose",
+  "Generosity",
+  "Corruption\nPerception"
+)
+ggpairs(
+  num_vars,
+  # title = "Pairwise Plots for Happiness Score Predictors",
+  upper = list(continuous = wrap("cor", size = 3, color = "#2E86C1")),
+  lower = list(continuous = wrap("smooth", alpha = 0.4, color = "#4D4D4D")), # alpha added here
+  diag = list(continuous = wrap("densityDiag", fill = "#F5B041"))
+) +
+  theme_bw(base_size = 12) +
+  theme(
+    # plot.title = element_text(face = "bold", hjust = 0.5, size = ),
+    axis.text.x = element_text(size = 6, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 6),
+    strip.text = element_text(size = 5)
+  )
+```
+.footnote[**Dropping variables** which are **highly correlated** with each other.]
+]
+.panel[.panel-name[Reduced Model]
+
+- Dropped Life Expectancy and Social Support and **keeping GDP**, as it’s a more general and stable economic indicator.
+- Keeping **Freedom to Choose, Generosity and Corruption Perception**, they have moderate and unique contributions.
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=9, fig.height=3.5, dpi=300}
+reduced_model <- lm(Happiness_Score ~ GDP_per_Capita + Freedom_to_Choose + Corruption_Perception + Generosity, data = world_happiness)
+
+kable(summary(reduced_model)$coefficients, caption = "Regression Coefficients for Reduced Model", digits = 5)
+```
+]
+
+.panel[.panel-name[95% CI]
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=12, fig.height=2, dpi=300}
+# confint(reduced_model)
+
+kable(confint(reduced_model), caption = "95% Confidence Intervals for Reduced Model Coefficients", digits = 3)
+```
+
+.footnote[- **All variables** retained in the **reduced model**, GDP per Capita, Freedom to Choose, Corruption Perception, and Generosity have **statistically significant effects on happiness scores**. 
+- Their **95% confidence intervals do not include zero**, confirming their importance in predicting national happiness between 2019 and 2024.]
+
+]
+
+.panel[.panel-name[Diagnostic Plots]
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=4, fig.height=1.25, dpi=300}
+autoplot(reduced_model,
+  smooth.colour = "red",
+  smooth.size = 0.8,
+  shape = 21,
+  # colour = "grey30",
+  size = 0.25,
+  label.size = 1,
+  label.hjust = 0.5,
+  label.colour = "blue",
+  ncol = 2
+) +
+  theme_gray(base_size = 4) +
+  theme(
+    strip.text = element_text(size = 4, face = "bold"),
+    axis.text = element_text(size = 4),
+    plot.title = element_text(hjust = 0.5, size = 4),
+    panel.grid.major = element_line(size = 0.15),
+    axis.title = element_text(size = 4)
+  )
+```
+
+.footnote[**Residuals are fairly evenly spread** with no strong curve, **supporting linearity**, though a slight downward trend suggests **minor non-linearity** may be present. Residuals largely follow the diagonal, suggesting **approximate normality**, with minor tail deviations. The red line is mostly flat, with consistent spread, suggesting constant variance holds reasonably well. **Points 435, 669, and 863** have **slightly higher leverage**, but **none exceed Cook’s distance** cutoff. No highly influential points detected. 
+]
+
+]
+.panel[.panel-name[Outliers]
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=4, fig.height=1.25, dpi=300}
+# Calculate Cook’s Distance
+cooksD <- cooks.distance(reduced_model)
+
+# Set threshold: 4 / n
+n <- nrow(world_happiness)
+threshold <- 4 / n
+
+# Bind Cook's D back to the data
+cooks_df <- world_happiness %>%
+  mutate(
+    Cooks_Distance = cooksD,
+    Row = row_number()
+  ) %>%
+  filter(Row %in% c(435, 669, 863)) %>%
+  select(Row, Country, Year, Happiness_Score, Cooks_Distance)
+
+# Display as table
+kable(cooks_df, digits = 5, caption = "Outliers and Their Cook’s Distance Values")
+```
+The following countries were flagged as outliers based on residual and leverage diagnostics.
+As shown in the table, **all Cook’s Distance values fall below the conventional threshold** (4/n), indicating they are not influential and were retained in the model.
+
+<div class="middle-bar">Findings confirm the hypothesis: The reduced model shows that GDP, freedom, corruption perception, and generosity significantly predict happiness. Model diagnostics confirm validity, with no influential outliers detected. </div>
+]
+]
+
+---
+## <div class="header-bar">Question 2 - Approach</div>
+
+.pull-cen[
+#### Used ANOVA to compare top and bottom performers in South Asia to assess regional disparities and Pakistan’s position.
+]
+
+.panelset.sideways[
+.panel[.panel-name[Happiness vs Predictors in SA]
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=4, fig.height=2, dpi=300}
+# Define South Asian countries
+south_asia <- c(
+  "Pakistan", "India", "Bangladesh", "Sri Lanka",
+  "Nepal", "Bhutan", "Maldives", "Afghanistan"
+)
+
+south_asia_data <- world_happiness %>%
+  filter(Country %in% south_asia)
+
+# Group by Country and calculate mean happiness and mean of predictors
+south_asia_avg <- south_asia_data %>%
+  group_by(Country) %>%
+  summarise(
+    Avg_Happiness = mean(Happiness_Score, na.rm = TRUE),
+    GDP_per_Capita = mean(GDP_per_Capita, na.rm = TRUE),
+    Social_Support = mean(Social_Support, na.rm = TRUE),
+    Healthy_Life_Expectancy = mean(Healthy_Life_Expectancy, na.rm = TRUE),
+    Freedom = mean(Freedom_to_Choose, na.rm = TRUE),
+    Generosity = mean(Generosity, na.rm = TRUE),
+    Corruption = mean(Corruption_Perception, na.rm = TRUE)
+  )
+
+# Categorize countries
+south_asia_avg <- south_asia_avg %>%
+  mutate(Category = case_when(
+    Country %in% Country[order(-Avg_Happiness)][1:2] ~ "Top 2",
+    Country %in% Country[order(Avg_Happiness)][1:2] ~ "Bottom 2",
+    Country == "Pakistan" ~ "Pakistan",
+    TRUE ~ "Others"
+  ))
+
+# Reshape data for faceted plotting
+south_asia_cor_happiness <- south_asia_avg %>%
+  select(
+    Country, Avg_Happiness, GDP_per_Capita, Social_Support,
+    Healthy_Life_Expectancy, Freedom, Generosity, Corruption
+  ) %>%
+  pivot_longer(
+    cols = -c(Country, Avg_Happiness),
+    names_to = "Factor",
+    values_to = "Value"
+  )
+
+# Create faceted scatter plot
+ggplot(south_asia_cor_happiness, aes(x = Value, y = Avg_Happiness)) +
+  geom_point(aes(color = Country), size = 1) +
+  # geom_smooth(method = "lm", se = FALSE, color = "gray30") +
+  facet_wrap(~Factor, scales = "free_x") +
+  scale_color_viridis(discrete = TRUE) +
+  labs(
+    title = "Associations Between Average Happiness and Predictors",
+    x = "Predictors",
+    y = "Happiness Score"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 1))) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 8, face = "bold"),
+    axis.title.x = element_text(size = 6, hjust = 0.5, face = "bold"),
+    axis.text = element_text(size = 5),
+    axis.title.y = element_text(size = 6, hjust = 0.5, face = "bold"),
+    strip.text = element_text(size = 4),
+    legend.title = element_text(size = 6, face = "bold"),
+    legend.text = element_text(size = 6),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    legend.key.height = unit(0.7, "lines"),
+    legend.key.width = unit(0.3, "lines")
+  )
+```
+.footnote[**Generosity, social support, freedom, and healthy life expectancy** appear to have the **strongest positive associations**, whereas corruption and GDP show more moderate influence.]
+]
+
+.panel[.panel-name[Correlation Matrix]
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=10, fig.height=6, dpi=300}
+# Select only numeric predictor columns + happiness
+cor_data <- south_asia_avg %>%
+  select(
+    Avg_Happiness, GDP_per_Capita, Social_Support, Healthy_Life_Expectancy,
+    Freedom, Generosity, Corruption
+  )
+
+# Compute correlation matrix
+cor_matrix <- cor(cor_data, use = "complete.obs")
+
+# Show only correlations with happiness
+cor_with_happiness <- cor_matrix["Avg_Happiness", -1]
+
+# Convert to tidy format for display
+cor_df <- data.frame(
+  # Predictor = names(cor_with_happiness),
+  Correlation = round(cor_with_happiness, 3)
+) %>%
+  arrange(desc(abs(Correlation)))
+
+
+knitr::kable(cor_df, caption = "Correlation Matrix of Predictors with Average Happiness (South Asia)", digits = 3)
+```
+.footnote[Generosity and Social Support are most strongly correlated with happiness among South Asian countries in the dataset. **GDP**, surprisingly, is **less strongly linked** compared to social or emotional factors.]
+]
+
+.panel[.panel-name[Modeling Happiness in South Asia]
+
+Three linear regression models were tested: 
+- Model 1 included Generosity
+- Model 2 added Social Support
+- Model 3 incorporated all predictors
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=10, fig.height=6, dpi=300}
+# Model 1: Happiness ~ Generosity
+model1 <- lm(Avg_Happiness ~ Generosity, data = south_asia_avg)
+
+
+# Model 2: Happiness ~ Generosity + Social Support
+model2 <- lm(Avg_Happiness ~ Generosity + Social_Support, data = south_asia_avg)
+
+# Model 3: Generosity + Social Support + Healthy Life Expectancy
+model3 <- lm(Avg_Happiness ~ Generosity + Social_Support + Healthy_Life_Expectancy + Freedom + GDP_per_Capita + Corruption, data = south_asia_avg)
+
+# Extract
+model_summary <- tibble(
+  Model = c("Model 1", "Model 2", "Model 3"),
+  Predictors = c(
+    "Generosity",
+    "Generosity + Social Support",
+    "All Predictors"
+  ),
+  R_sq = c(
+    summary(model1)$r.squared,
+    summary(model2)$r.squared,
+    summary(model3)$r.squared
+  ),
+  Adj_R = c(
+    summary(model1)$adj.r.squared,
+    summary(model2)$adj.r.squared,
+    summary(model3)$adj.r.squared
+  ),
+  DF = c(
+    df.residual(model1),
+    df.residual(model2),
+    df.residual(model3)
+  ),
+  p_value = c(
+    summary(model1)$fstatistic %>%
+      {
+        pf(.[1], .[2], .[3], lower.tail = FALSE)
+      },
+    anova(model1, model2)$"Pr(>F)"[2],
+    anova(model2, model3)$"Pr(>F)"[2]
+  )
+)
+
+# Display as a formatted table
+knitr::kable(model_summary, digits = 4, caption = "Comparison of Regression Models")
+```
+.footnote[**Model 1 (Generosity)** is statistically significant (**p = 0.0177**) and explains **64% of the variance in happiness**. Before drawing final conclusions about the best model, ANOVA will be performed to statistically test whether the additional predictors in Models 2 and 3 significantly improve the model fit compared to Model 1.]
+]
+
+]
+
+---
+## <div class="header-bar">Question 2 - Modelling & Results</div>
+
+.panelset[
+
+.panel[.panel-name[ANOVA on models]
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.width=10, fig.height=6, dpi=300}
+anova_res <- anova(model1, model2)
+colnames(anova_res) <- c("Residual DF", "RSS", "DF", "Sum Sq", "F-value", "p-value")
+kable(anova_res, digits = 4, caption = "ANOVA: Model 1 vs Model 2")
+
+anova_res <- anova(model2, model3)
+colnames(anova_res) <- c("Residual DF", "RSS", "DF", "Sum Sq", "F-value", "p-value")
+kable(anova_res, digits = 4, caption = "ANOVA: Model 2 vs Model 3")
+```
+.footnote[Based on both model performance metrics and ANOVA results, **Model 1 (Generosity only)** is the most **statistically valid model**, with strong significance (**p = 0.0177**). Adding more predictors did not significantly improve the model.]
+]
+
+.panel[.panel-name[Actual vs Predicted - Model 1]
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=6, fig.height=2, dpi=300}
+# Add predicted values to the dataset
+south_asia_avg$Predicted_Happiness <- predict(model1)
+
+# Add residuals (optional, to show error)
+south_asia_avg$Residual <- south_asia_avg$Avg_Happiness - south_asia_avg$Predicted_Happiness
+
+
+# Create a flag for Pakistan
+south_asia_avg$Highlight <- ifelse(south_asia_avg$Country == "Pakistan", "Pakistan", "Other")
+
+# Plot
+ggplot(south_asia_avg, aes(x = Predicted_Happiness, y = Avg_Happiness, label = Country)) +
+  geom_point(aes(color = Highlight), size = 3) +
+  geom_text(vjust = -1, hjust = 0.5, size = 2, fontface = "bold") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray40") +
+  scale_color_manual(values = c("Pakistan" = "#d95f02", "Other" = "steelblue")) +
+  scale_y_continuous(limits = c(2, 6)) +
+  labs(
+    title = "Actual vs Predicted Happiness (Model 1: Generosity)",
+    x = "Predicted Happiness",
+    y = "Actual Happiness"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.title.x = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.title.y = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold"),
+    legend.position = "none"
+  )
+```
+.footnote[**Pakistan performs better** than predicted based on Generosity alone, suggesting the influence of additional unmodeled factors. Countries like India and Afghanistan, lie below the prediction line, indicating underperformance.]
+]
+
+.panel[.panel-name[Quantify Residuals]
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.width=8, fig.height=2, dpi=300}
+# Residual = Actual - Predicted
+south_asia_avg$Residual <- south_asia_avg$Avg_Happiness - south_asia_avg$Predicted_Happiness
+
+# Bar plot: Residuals (Actual - Predicted)
+south_asia_avg %>%
+  mutate(Country = reorder(Country, Residual)) %>%
+  ggplot(aes(x = Country, y = Residual, fill = Country == "Pakistan")) +
+  geom_col() +
+  scale_fill_manual(values = c("TRUE" = "#d95f02", "FALSE" = "steelblue"), guide = FALSE) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  coord_flip() +
+  labs(
+    title = "Residuals: Actual - Predicted Happiness (Model 1)",
+    y = "Residual (Actual - Predicted)",
+    x = "Country"
+  ) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.title.x = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.title.y = element_text(size = 8, hjust = 0.5, face = "bold"),
+    axis.text.y = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"),
+    legend.background = element_blank(),
+    legend.key = element_blank()
+  )
+```
+<div class="middle-bar">The results confirm that generosity, life expectancy, and freedom are key predictors of happiness in South Asia. Pakistan, ranked in the upper-middle tier, exceeded its predicted score, suggesting influence from additional unmodeled factors.</div>
+]
+
+]
+---
+## <div class="header-bar">Conclusion</div>
+
+
+.pull-cen[
+
+**Happiness is a multidimensional outcome influenced by more than just economic factors. While GDP does play a role, my analysis shows that social support, emotional well-being, and good governance are equally important, particularly in regions like South Asia, where these non-economic factors often have a stronger impact on overall life satisfaction.**
+]
+---
+class: center, middle
+
+# Thank You.
